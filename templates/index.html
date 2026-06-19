@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baixador Universal de Mídias</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
+
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-indigo-400">Baixador Universal</h1>
+            <p class="text-gray-400 mt-2 text-sm">Adicione links à fila e baixe como vídeo ou áudio</p>
+        </header>
+
+        <div id="painel-status" class="hidden bg-gray-800 border-l-4 border-indigo-500 p-4 mb-6 rounded shadow-md">
+            <p id="texto-status" class="text-indigo-300 font-medium animate-pulse">Verificando status...</p>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+            <div class="mb-4">
+                <label class="block text-gray-300 text-sm font-semibold mb-2">Link do Vídeo:</label>
+                <input type="url" id="input-url" placeholder="Cole o link do YouTube, TikTok, etc. aqui..." 
+                       class="w-full p-3 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-400 focus:outline-none focus:border-indigo-500">
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-gray-300 text-sm font-semibold mb-2">Formato de Saída:</label>
+                <div class="flex gap-4">
+                    <label class="flex items-center bg-gray-700 px-4 py-2 rounded cursor-pointer border border-transparent hover:border-gray-500">
+                        <input type="radio" name="formato" value="mp4" checked class="mr-2 text-indigo-500 focus:ring-0">
+                        Vídeo (MP4)
+                    </label>
+                    <label class="flex items-center bg-gray-700 px-4 py-2 rounded cursor-pointer border border-transparent hover:border-gray-500">
+                        <input type="radio" name="formato" value="mp3" class="mr-2 text-indigo-500 focus:ring-0">
+                        Áudio (MP3)
+                    </label>
+                </div>
+            </div>
+
+            <button onclick="adicionarAOFila()" id="btn-adicionar"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded transition duration-200">
+                + Adicionar à Fila
+            </button>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <h2 class="text-xl font-bold mb-4 text-gray-200 flex justify-between items-center">
+                <span>Fila de Downloads</span>
+                <span id="contador-fila" class="bg-indigo-900 text-indigo-300 text-xs px-2.5 py-0.5 rounded-full">0 itens</span>
+            </h2>
+            
+            <ul id="lista-fila" class="divide-y divide-gray-700 max-h-60 overflow-y-auto mb-4">
+                <p id="fila-vazia" class="text-gray-500 text-center py-4 text-sm">Nenhum link na fila no momento.</p>
+            </ul>
+
+            <button onclick="enviarFilaAoServidor()" id="btn-baixar-tudo" disabled
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 px-4 rounded transition duration-200 cursor-not-allowed disabled:cursor-not-allowed">
+                🚀 Começar a Baixar Tudo
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let filaDeDownloads = [];
+        let intervaloStatus = null;
+
+        function adicionarAOFila() {
+            const inputUrl = document.getElementById('input-url');
+            const url = inputUrl.value.trim();
+            const formato = document.querySelector('input[name="formato"]:checked').value;
+
+            if (!url) {
+                alert('Por favor, insira um link válido.');
+                return;
+            }
+
+            filaDeDownloads.push({ url, formato });
+            inputUrl.value = ''; // Limpa o campo de texto
+            atualizarInterfaceFila();
+        }
+
+        function atualizarInterfaceFila() {
+            const lista = document.getElementById('lista-fila');
+            const contador = document.getElementById('contador-fila');
+            const btnBaixar = document.getElementById('btn-baixar-tudo');
+            
+            lista.innerHTML = '';
+            contador.innerText = `${filaDeDownloads.length} itens`;
+
+            if (filaDeDownloads.length === 0) {
+                lista.innerHTML = '<p id="fila-vazia" class="text-gray-500 text-center py-4 text-sm">Nenhum link na fila no momento.</p>';
+                btnBaixar.disabled = true;
+                btnBaixar.classList.add('cursor-not-allowed');
+                return;
+            }
+
+            btnBaixar.disabled = false;
+            btnBaixar.classList.remove('cursor-not-allowed');
+
+            filaDeDownloads.forEach((item, index) => {
+                const li = document.createElement('li');
+                li.className = "py-3 flex justify-between items-center text-sm";
+                
+                const badgeColor = item.formato === 'mp4' ? 'bg-blue-900 text-blue-300' : 'bg-amber-900 text-amber-300';
+                
+                li.innerHTML = `
+                    <span class="truncate max-w-xs md:max-w-md text-gray-300">${item.url}</span>
+                    <span class="px-2 py-1 rounded text-xs font-bold ${badgeColor}">${item.formato.toUpperCase()}</span>
+                `;
+                lista.appendChild(li);
+            });
+        }
+
+        function enviarFilaAoServidor() {
+            fetch('/iniciar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fila: filaDeDownloads })
+            })
+            .then(res => res.json())
+            .then(dados => {
+                if (dados.erro) {
+                    alert(dados.erro);
+                } else {
+                    filaDeDownloads = [];
+                    atualizarInterfaceFila();
+                    bloquearInterface(true);
+                    monitorarStatus();
+                }
+            });
+        }
+
+        function monitorarStatus() {
+            const painel = document.getElementById('painel-status');
+            const texto = document.getElementById('texto-status');
+            painel.classList.remove('hidden');
+
+            intervaloStatus = setInterval(() => {
+                fetch('/status')
+                .then(res => res.json())
+                .then(status => {
+                    texto.innerText = status.mensagem;
+                    if (!status.baixando) {
+                        clearInterval(intervaloStatus);
+                        bloquearInterface(false);
+                        setTimeout(() => painel.classList.add('hidden'), 5000); // Esconde o painel após 5s
+                    }
+                });
+            }, 2000); // Consulta o Python a cada 2 segundos
+        }
+
+        function bloquearInterface(bloquear) {
+            document.getElementById('btn-adicionar').disabled = bloquear;
+            if (bloquear) {
+                document.getElementById('btn-adicionar').classList.add('bg-gray-700', 'cursor-not-allowed');
+            } else {
+                document.getElementById('btn-adicionar').classList.remove('bg-gray-700', 'cursor-not-allowed');
+            }
+        }
+    </script>
+</body>
+</html>
