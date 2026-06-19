@@ -1,0 +1,6 @@
+# Ignorar a pasta de downloads
+Meus_Arquivos_Baixados/
+
+# Ignorar arquivos temporários do Python
+__pycache__/
+*.pyc
