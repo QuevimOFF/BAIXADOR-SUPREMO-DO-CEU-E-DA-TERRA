@@ -11,10 +11,10 @@
     <div class="container mx-auto px-4 py-8 max-w-2xl">
         <header class="text-center mb-8">
             <h1 class="text-3xl font-bold text-indigo-400">Baixador Universal</h1>
-            <p class="text-gray-400 mt-2 text-sm">Adicione links à fila e baixe como vídeo ou áudio</p>
+            <p class="text-gray-400 mt-2 text-sm">Adicione links/playlists à fila e baixe do seu jeito</p>
         </header>
 
-        <div id="painel-status" class="hidden bg-gray-800 border-l-4 border-indigo-500 p-4 mb-6 rounded shadow-md">
+        <div id="painel-status" class="hidden bg-gray-800 border-l-4 border-indigo-500 p-4 mb-4 rounded shadow-md">
             <p id="texto-status" class="text-indigo-300 font-medium mb-3 animate-pulse">Verificando status...</p>
             <div class="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
                 <div id="barra-progresso" class="bg-indigo-500 h-4 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
@@ -22,24 +22,40 @@
             <p id="texto-porcentagem" class="text-right text-xs text-indigo-300 mt-1 font-bold">0%</p>
         </div>
 
+        <div id="painel-erros" class="hidden bg-red-900 border-l-4 border-red-500 p-4 mb-6 rounded shadow-md">
+            <h3 class="text-red-300 font-bold mb-2">⚠️ Ocorreram erros nos seguintes links:</h3>
+            <ul id="lista-erros" class="list-disc list-inside text-red-200 text-xs"></ul>
+        </div>
+
         <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
             <div class="mb-4">
-                <label class="block text-gray-300 text-sm font-semibold mb-2">Link do Vídeo:</label>
-                <input type="url" id="input-url" placeholder="Cole o link do YouTube, TikTok, etc. aqui..." 
+                <label class="block text-gray-300 text-sm font-semibold mb-2">Link do Vídeo ou Playlist:</label>
+                <input type="url" id="input-url" placeholder="Cole o link do YouTube, TikTok, Playlist, etc..." 
                        class="w-full p-3 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-400 focus:outline-none focus:border-indigo-500">
             </div>
 
-            <div class="mb-6">
-                <label class="block text-gray-300 text-sm font-semibold mb-2">Formato de Saída:</label>
-                <div class="flex gap-4">
-                    <label class="flex items-center bg-gray-700 px-4 py-2 rounded cursor-pointer border border-transparent hover:border-gray-500">
-                        <input type="radio" name="formato" value="mp4" checked class="mr-2 text-indigo-500 focus:ring-0">
-                        Vídeo (MP4)
-                    </label>
-                    <label class="flex items-center bg-gray-700 px-4 py-2 rounded cursor-pointer border border-transparent hover:border-gray-500">
-                        <input type="radio" name="formato" value="mp3" class="mr-2 text-indigo-500 focus:ring-0">
-                        Áudio (MP3)
-                    </label>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-gray-300 text-sm font-semibold mb-2">Formato de Saída:</label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center bg-gray-700 px-4 py-2 rounded cursor-pointer border border-transparent hover:border-gray-500">
+                            <input type="radio" name="formato" value="mp4" checked onchange="ajustarMenuQualidade()" class="mr-2 text-indigo-500 focus:ring-0">
+                            Vídeo (MP4)
+                        </label>
+                        <label class="flex items-center bg-gray-700 px-4 py-2 rounded cursor-pointer border border-transparent hover:border-gray-500">
+                            <input type="radio" name="formato" value="mp3" onchange="ajustarMenuQualidade()" class="mr-2 text-indigo-500 focus:ring-0">
+                            Áudio (MP3)
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-gray-300 text-sm font-semibold mb-2">Qualidade do Vídeo:</label>
+                    <select id="select-qualidade" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-gray-100 focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <option value="1080p">Alta Definição (1080p)</option>
+                        <option value="720p" selected>Qualidade Padrão (720p)</option>
+                        <option value="360p">Economia de Dados (360p)</option>
+                    </select>
                 </div>
             </div>
 
@@ -51,8 +67,13 @@
 
         <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
             <h2 class="text-xl font-bold mb-4 text-gray-200 flex justify-between items-center">
-                <span>Fila de Downloads</span>
-                <span id="contador-fila" class="bg-indigo-900 text-indigo-300 text-xs px-2.5 py-0.5 rounded-full">0 itens</span>
+                <div class="flex items-center gap-2">
+                    <span>Fila de Downloads</span>
+                    <span id="contador-fila" class="bg-indigo-900 text-indigo-300 text-xs px-2.5 py-0.5 rounded-full">0 itens</span>
+                </div>
+                <button onclick="limparFilaCompleta()" id="btn-limpar-fila" class="text-xs text-red-400 hover:text-red-300 transition duration-200">
+                    🧹 Limpar Fila
+                </button>
             </h2>
             
             <ul id="lista-fila" class="divide-y divide-gray-700 max-h-40 overflow-y-auto mb-4">
@@ -82,26 +103,38 @@
         let filaDeDownloads = [];
         let intervaloStatus = null;
 
-        // Carrega os arquivos assim que a página abre
         window.onload = carregarArquivos;
+
+        // Desativa a escolha de qualidade se o formato for MP3 (Áudio não tem resolução)
+        function ajustarMenuQualidade() {
+            const formato = document.querySelector('input[name="formato"]:checked').value;
+            const selectQualidade = document.getElementById('select-qualidade');
+            selectQualidade.disabled = (formato === 'mp3');
+        }
 
         function adicionarAOFila() {
             const inputUrl = document.getElementById('input-url');
             const url = inputUrl.value.trim();
             const formato = document.querySelector('input[name="formato"]:checked').value;
+            const qualidade = document.getElementById('select-qualidade').value;
 
             if (!url) {
                 alert('Por favor, insira um link válido.');
                 return;
             }
 
-            filaDeDownloads.push({ url, formato });
+            filaDeDownloads.push({ url, formato, qualidade });
             inputUrl.value = ''; 
             atualizarInterfaceFila();
         }
 
         function removerDaFila(index) {
             filaDeDownloads.splice(index, 1);
+            atualizarInterfaceFila();
+        }
+
+        function limparFilaCompleta() {
+            filaDeDownloads = [];
             atualizarInterfaceFila();
         }
 
@@ -128,6 +161,7 @@
                 li.className = "py-3 flex justify-between items-center text-sm gap-2";
                 
                 const badgeColor = item.formato === 'mp4' ? 'bg-blue-900 text-blue-300' : 'bg-amber-900 text-amber-300';
+                const textoQualidade = item.formato === 'mp4' ? ` (${item.qualidade})` : '';
                 
                 li.innerHTML = `
                     <div class="flex items-center gap-3 overflow-hidden">
@@ -138,7 +172,7 @@
                         <span class="truncate text-gray-300" title="${item.url}">${item.url}</span>
                     </div>
                     <span class="px-2 py-1 rounded text-xs font-bold flex-shrink-0 ${badgeColor}">
-                        ${item.formato.toUpperCase()}
+                        ${item.formato.toUpperCase()}${textoQualidade}
                     </span>
                 `;
                 lista.appendChild(li);
@@ -146,6 +180,8 @@
         }
 
         function enviarFilaAoServidor() {
+            document.getElementById('painel-erros').classList.add('hidden');
+            
             fetch('/iniciar', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -169,6 +205,8 @@
             const texto = document.getElementById('texto-status');
             const barra = document.getElementById('barra-progresso');
             const textoPorcentagem = document.getElementById('texto-porcentagem');
+            const painelErros = document.getElementById('painel-erros');
+            const listaErros = document.getElementById('lista-erros');
             
             painel.classList.remove('hidden');
 
@@ -183,9 +221,17 @@
                     if (!status.baixando) {
                         clearInterval(intervaloStatus);
                         bloquearInterface(false);
-                        
-                        // O truque mágico: Atualiza a lista de arquivos sozinho quando o download acaba!
                         carregarArquivos();
+
+                        if (status.falhas && status.falhas.length > 0) {
+                            listaErros.innerHTML = '';
+                            status.falhas.forEach(link => {
+                                const li = document.createElement('li');
+                                li.innerText = link;
+                                listaErros.appendChild(li);
+                            });
+                            painelErros.classList.remove('hidden');
+                        }
 
                         setTimeout(() => {
                             painel.classList.add('hidden');
@@ -199,10 +245,14 @@
 
         function bloquearInterface(bloquear) {
             document.getElementById('btn-adicionar').disabled = bloquear;
+            document.getElementById('btn-limpar-fila').disabled = bloquear;
+            
             if (bloquear) {
                 document.getElementById('btn-adicionar').classList.add('bg-gray-700', 'cursor-not-allowed');
+                document.getElementById('btn-limpar-fila').classList.add('opacity-30', 'cursor-not-allowed');
             } else {
                 document.getElementById('btn-adicionar').classList.remove('bg-gray-700', 'cursor-not-allowed');
+                document.getElementById('btn-limpar-fila').classList.remove('opacity-30', 'cursor-not-allowed');
             }
             
             const lixeiras = document.querySelectorAll('button[title="Remover item"]');
@@ -212,7 +262,6 @@
             });
         }
 
-        // NOVA FUNÇÃO: Busca a lista de arquivos no computador e cria os botões de baixar
         function carregarArquivos() {
             const lista = document.getElementById('lista-arquivos');
             lista.innerHTML = '<p class="text-gray-500 text-center py-4 text-sm animate-pulse">Consultando servidor...</p>';
@@ -233,13 +282,38 @@
                     
                     li.innerHTML = `
                         <span class="truncate text-gray-300 flex-1" title="${arquivo}">📄 ${arquivo}</span>
-                        <a href="/download/${encodeURIComponent(arquivo)}" download
-                           class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded transition duration-200 flex-shrink-0 shadow-md">
-                            ⬇️ Salvar
-                        </a>
+                        <div class="flex gap-2 flex-shrink-0">
+                            <a href="/download/${encodeURIComponent(arquivo)}" download
+                               class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-3 rounded transition duration-200 shadow-md">
+                                ⬇️ Salvar
+                            </a>
+                            <button onclick="deletarArquivoDoServidor('${arquivo}')"
+                                    class="bg-red-700 hover:bg-red-600 text-white text-xs font-bold py-2 px-3 rounded transition duration-200 shadow-md">
+                                🗑️ Apagar
+                            </button>
+                        </div>
                     `;
                     lista.appendChild(li);
                 });
+            });
+        }
+
+        // NOVA FUNÇÃO: Dispara a rota do Python para deletar o arquivo do HD
+        function deletarArquivoDoServidor(nomeArquivo) {
+            if (!confirm(`Tem certeza que deseja apagar permanentemente o arquivo "${nomeArquivo}" do servidor?`)) {
+                return;
+            }
+
+            fetch(`/deletar/${encodeURIComponent(nomeArquivo)}`, {
+                method: 'POST'
+            })
+            .then(res => res.json())
+            .then(dados => {
+                if (dados.erro) {
+                    alert(dados.erro);
+                } else {
+                    carregarArquivos(); // Recarrega a lista atualizada
+                }
             });
         }
     </script>
