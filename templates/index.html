@@ -138,7 +138,7 @@
             atualizarInterfaceFila();
         }
 
-        function atualizarInterfaceFila() {
+function atualizarInterfaceFila() {
             const lista = document.getElementById('lista-fila');
             const contador = document.getElementById('contador-fila');
             const btnBaixar = document.getElementById('btn-baixar-tudo');
@@ -169,6 +169,8 @@
                                 class="text-red-400 hover:text-red-300 hover:bg-gray-700 bg-gray-800 p-1.5 rounded transition duration-200 flex-shrink-0">
                             🗑️
                         </button>
+                        <span class="text-gray-500 font-mono font-bold text-xs flex-shrink-0">${index + 1}.</span>
+                        
                         <span class="truncate text-gray-300" title="${item.url}">${item.url}</span>
                     </div>
                     <span class="px-2 py-1 rounded text-xs font-bold flex-shrink-0 ${badgeColor}">
