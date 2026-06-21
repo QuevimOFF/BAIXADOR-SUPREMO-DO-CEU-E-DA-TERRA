@@ -6,7 +6,7 @@
     <title>Baixador Universal de Mídias</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen pb-10">
 
     <div class="container mx-auto px-4 py-8 max-w-2xl">
         <header class="text-center mb-8">
@@ -15,7 +15,11 @@
         </header>
 
         <div id="painel-status" class="hidden bg-gray-800 border-l-4 border-indigo-500 p-4 mb-6 rounded shadow-md">
-            <p id="texto-status" class="text-indigo-300 font-medium animate-pulse">Verificando status...</p>
+            <p id="texto-status" class="text-indigo-300 font-medium mb-3 animate-pulse">Verificando status...</p>
+            <div class="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+                <div id="barra-progresso" class="bg-indigo-500 h-4 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+            </div>
+            <p id="texto-porcentagem" class="text-right text-xs text-indigo-300 mt-1 font-bold">0%</p>
         </div>
 
         <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
@@ -45,13 +49,13 @@
             </button>
         </div>
 
-        <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
             <h2 class="text-xl font-bold mb-4 text-gray-200 flex justify-between items-center">
                 <span>Fila de Downloads</span>
                 <span id="contador-fila" class="bg-indigo-900 text-indigo-300 text-xs px-2.5 py-0.5 rounded-full">0 itens</span>
             </h2>
             
-            <ul id="lista-fila" class="divide-y divide-gray-700 max-h-60 overflow-y-auto mb-4">
+            <ul id="lista-fila" class="divide-y divide-gray-700 max-h-40 overflow-y-auto mb-4">
                 <p id="fila-vazia" class="text-gray-500 text-center py-4 text-sm">Nenhum link na fila no momento.</p>
             </ul>
 
@@ -60,11 +64,26 @@
                 🚀 Começar a Baixar Tudo
             </button>
         </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <h2 class="text-xl font-bold mb-4 text-gray-200 flex justify-between items-center">
+                <span>📂 Arquivos no Servidor</span>
+                <button onclick="carregarArquivos()" class="text-xs bg-gray-700 hover:bg-gray-600 text-white py-1 px-3 rounded transition duration-200">
+                    🔄 Atualizar Lista
+                </button>
+            </h2>
+            <ul id="lista-arquivos" class="divide-y divide-gray-700 max-h-60 overflow-y-auto">
+                <p class="text-gray-500 text-center py-4 text-sm">Carregando arquivos...</p>
+            </ul>
+        </div>
     </div>
 
-<script>
+    <script>
         let filaDeDownloads = [];
         let intervaloStatus = null;
+
+        // Carrega os arquivos assim que a página abre
+        window.onload = carregarArquivos;
 
         function adicionarAOFila() {
             const inputUrl = document.getElementById('input-url');
@@ -77,14 +96,13 @@
             }
 
             filaDeDownloads.push({ url, formato });
-            inputUrl.value = ''; // Limpa o campo de texto
+            inputUrl.value = ''; 
             atualizarInterfaceFila();
         }
 
-        // NOVA FUNÇÃO: Remove o item da lista com base na posição dele (index)
         function removerDaFila(index) {
-            filaDeDownloads.splice(index, 1); // Remove 1 item a partir daquele índice
-            atualizarInterfaceFila(); // Atualiza a tela
+            filaDeDownloads.splice(index, 1);
+            atualizarInterfaceFila();
         }
 
         function atualizarInterfaceFila() {
@@ -111,7 +129,6 @@
                 
                 const badgeColor = item.formato === 'mp4' ? 'bg-blue-900 text-blue-300' : 'bg-amber-900 text-amber-300';
                 
-                // Interface atualizada com o botão de Lixeira (🗑️)
                 li.innerHTML = `
                     <div class="flex items-center gap-3 overflow-hidden">
                         <button onclick="removerDaFila(${index})" title="Remover item"
@@ -150,6 +167,9 @@
         function monitorarStatus() {
             const painel = document.getElementById('painel-status');
             const texto = document.getElementById('texto-status');
+            const barra = document.getElementById('barra-progresso');
+            const textoPorcentagem = document.getElementById('texto-porcentagem');
+            
             painel.classList.remove('hidden');
 
             intervaloStatus = setInterval(() => {
@@ -157,13 +177,24 @@
                 .then(res => res.json())
                 .then(status => {
                     texto.innerText = status.mensagem;
+                    barra.style.width = status.progresso + '%';
+                    textoPorcentagem.innerText = status.progresso + '%';
+
                     if (!status.baixando) {
                         clearInterval(intervaloStatus);
                         bloquearInterface(false);
-                        setTimeout(() => painel.classList.add('hidden'), 5000); 
+                        
+                        // O truque mágico: Atualiza a lista de arquivos sozinho quando o download acaba!
+                        carregarArquivos();
+
+                        setTimeout(() => {
+                            painel.classList.add('hidden');
+                            barra.style.width = '0%';
+                            textoPorcentagem.innerText = '0%';
+                        }, 5000); 
                     }
                 });
-            }, 2000); 
+            }, 1000); 
         }
 
         function bloquearInterface(bloquear) {
@@ -174,11 +205,41 @@
                 document.getElementById('btn-adicionar').classList.remove('bg-gray-700', 'cursor-not-allowed');
             }
             
-            // Bloqueia também os botões de lixeira durante o download
             const lixeiras = document.querySelectorAll('button[title="Remover item"]');
             lixeiras.forEach(btn => {
                 btn.disabled = bloquear;
                 if(bloquear) btn.classList.add('opacity-50', 'cursor-not-allowed');
+            });
+        }
+
+        // NOVA FUNÇÃO: Busca a lista de arquivos no computador e cria os botões de baixar
+        function carregarArquivos() {
+            const lista = document.getElementById('lista-arquivos');
+            lista.innerHTML = '<p class="text-gray-500 text-center py-4 text-sm animate-pulse">Consultando servidor...</p>';
+
+            fetch('/arquivos')
+            .then(res => res.json())
+            .then(arquivos => {
+                lista.innerHTML = '';
+                
+                if (arquivos.length === 0) {
+                    lista.innerHTML = '<p class="text-gray-500 text-center py-4 text-sm">Nenhum arquivo encontrado no servidor.</p>';
+                    return;
+                }
+
+                arquivos.forEach(arquivo => {
+                    const li = document.createElement('li');
+                    li.className = "py-3 flex justify-between items-center text-sm gap-4";
+                    
+                    li.innerHTML = `
+                        <span class="truncate text-gray-300 flex-1" title="${arquivo}">📄 ${arquivo}</span>
+                        <a href="/download/${encodeURIComponent(arquivo)}" download
+                           class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded transition duration-200 flex-shrink-0 shadow-md">
+                            ⬇️ Salvar
+                        </a>
+                    `;
+                    lista.appendChild(li);
+                });
             });
         }
     </script>
